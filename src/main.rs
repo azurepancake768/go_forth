@@ -1,28 +1,12 @@
 use bevy::{
     prelude::*,
-    window::{self, PrimaryWindow},
+    window::PrimaryWindow
 };
-use std::{iter, mem::transmute, ops::Index, process::exit};
+use std::{iter, mem::transmute, process::exit};
 
 const TILE_TEXTURE_DIMENSION: f32 = 32.0;
 const TILE_TEXTURE_SCALE: f32 = 2.0;
 const TILE_SIZE_PX: f32 = TILE_TEXTURE_DIMENSION * TILE_TEXTURE_SCALE;
-
-#[derive(Resource)]
-struct TileTypeTable(Vec<TileTypeData>);
-
-impl Index<usize> for TileTypeTable {
-    type Output = TileTypeData;
-
-    fn index(&self, i: usize) -> &Self::Output {
-        &self.0[i]
-    }
-}
-
-struct TileTypeData {
-    name: &'static str,
-    callback: fn(UVec2, Facing, &mut Vec<Vec<TileType>>) -> MoveOutcome, //pos, facing, rows
-}
 
 fn main() {
     let mut level = Vec::from([TileType::Empty; 8]);
@@ -31,16 +15,6 @@ fn main() {
 
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(TileTypeTable(vec![
-            TileTypeData {
-                name: "empty",
-                callback: |_, _, _| MoveOutcome::OK(None),
-            },
-            TileTypeData {
-                name: "wall",
-                callback: |_, _, _| MoveOutcome::Illegal,
-            },
-        ]))
         .insert_resource(Level {
             width: 4,
             height: 4,
@@ -67,14 +41,13 @@ fn render_positioned(
 fn render_level(
     mut q: Query<(&mut Handle<Image>, &mut Tile, &Positioned)>,
     assets: Res<AssetServer>,
-    tile_types: Res<TileTypeTable>,
     level: Res<Level>,
 ) {
     for (mut tex, mut tile, &Positioned(p)) in q.iter_mut() {
         tile.0 = level.tile_at_vec(p);
         *tex = assets.load(format!(
             "sprites/tiles/{}.png",
-            tile_types[tile.0 as usize].name
+            tile.0.name()
         ));
     }
 }
@@ -83,7 +56,6 @@ fn handle_kb_input(
     mut q: Query<(&Player, &mut Positioned)>,
     keyboard_input: Res<Input<KeyCode>>,
     mut level: ResMut<Level>,
-    tiles: Res<TileTypeTable>,
 ) {
     let (Player(facing), mut pos) = q.single_mut();
     let Positioned(ref mut pos) = *pos;
@@ -99,7 +71,7 @@ fn handle_kb_input(
             let new_pos = pos.wrapping_add(unsafe { transmute(n * facing.forward()) });
             let mut rows = level.rows();
             if new_pos.x < level.width as u32 && new_pos.y < level.height as u32 {
-                match (tiles[level.tile_at_vec(new_pos) as usize].callback)(
+                match level.tile_at_vec(new_pos).step(
                     *pos, *facing, &mut rows,
                 ) {
                     MoveOutcome::OK(o) => *pos = o.unwrap_or(new_pos),
@@ -133,7 +105,6 @@ fn setup(
     q: Query<&Window, With<PrimaryWindow>>,
     assets: Res<AssetServer>,
     level: Res<Level>,
-    tile_types: Res<TileTypeTable>,
 ) {
     let window = q.get_single().expect("Only one primary window");
 
@@ -150,7 +121,7 @@ fn setup(
                     transform: Transform::from_scale(Vec3::splat(TILE_TEXTURE_SCALE)),
                     texture: assets.load(format!(
                         "sprites/tiles/{}.png",
-                        tile_types[level.tile_at(i, j) as usize].name
+                        level.tile_at(i, j).name()
                     )),
                     ..default()
                 },
@@ -181,11 +152,19 @@ struct Level {
 impl Level {
     fn tile_at(&self, x: u8, y: u8) -> TileType {
         self.level[(y * self.width as u8 + x) as usize]
-    }
+    }/*
+
+    fn tile_at_mut(&mut self, x:u8, y: u8) -> &mut TileType{
+        &mut self.level[(y * self.width as u8 + x) as usize]
+    }*/
 
     fn tile_at_vec(&self, p: UVec2) -> TileType {
         self.tile_at(p.x as u8, p.y as u8)
-    }
+    }/*
+
+    fn tile_at_vec_mut(&mut self, p:UVec2) -> &mut TileType{
+       &mut self.tile_at(p.x as u8, p.y as u8)
+    }*/
 
     fn rows(&self) -> Vec<Vec<TileType>> {
         let mut result: Vec<Vec<TileType>> = iter::repeat(
@@ -208,6 +187,21 @@ impl Level {
 enum TileType {
     Empty,
     Wall,
+}
+
+impl TileType{
+    fn name(&self) -> String{
+        match self{
+            Self::Empty => String::from("empty"),
+            Self::Wall  => String::from("wall")
+        }
+    }
+    fn step(&self, pos: UVec2, player_facing: Facing, level: &mut Vec<Vec<TileType>>) -> MoveOutcome {
+        match self{
+            Self::Empty => MoveOutcome::OK(None),
+            Self::Wall  => MoveOutcome::Illegal
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
