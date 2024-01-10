@@ -9,7 +9,8 @@ const RIGHT_ANGLE: f32 = -3.141292 / 2.0;
 fn main() {
     let mut level = Vec::from([TileType::Empty; 3]);
     level.append(&mut Vec::from([TileType::PlayerRot(Side::Left); 1]));
-    level.append(&mut Vec::from([TileType::Empty; 3]));
+    level.append(&mut Vec::from([TileType::Empty; 2]));
+    level.append(&mut Vec::from([TileType::Finish; 1]));
     level.append(&mut Vec::from([TileType::Wall; 1]));
     level.append(&mut Vec::from([TileType::Empty; 3]));
     level.append(&mut Vec::from([TileType::PlayerRot(Side::Right); 1]));
