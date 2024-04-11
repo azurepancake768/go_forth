@@ -15,7 +15,7 @@ fn main() {
     level = [TileEmpty; 8].iter().map(|t| t.wrap()).collect();
     level.push(Box::new(TileRowShift{facing: Facing::Up}));
     level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
-    level.push(Box::new(TilePlayerRot{side: Side::Right}));
+    level.push(Box::new(TilePlayerRot{side: Side::Left}));
     level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
 
     bevy_backend::run(level);
@@ -167,13 +167,13 @@ impl Facing {
 
     fn rotate_by(&self, amount: i8) -> Facing {
         unsafe{
-            transmute(transmute::<Facing, i8>(*self) + amount)
+            transmute((transmute::<Facing, i8>(*self) + amount) % 4)
         }
     }
 
     fn add_rotation(&self, rhs: Facing) -> Facing{
         unsafe{
-            transmute(transmute::<Facing, i8>(*self) + transmute::<Facing, i8>(rhs))
+            transmute((transmute::<Facing, i8>(*self) + transmute::<Facing, i8>(rhs)) % 4)
         }
     }
 
