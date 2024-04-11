@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use crate::*;
 use bevy::{prelude::*, window::PrimaryWindow};
 
@@ -8,7 +10,7 @@ pub fn run(level: Vec<TileStored>) {
             width: 4,
             height: 4,
             level,
-            side_moves: 3
+            side_moves: 2
         })
         .add_systems(Startup, setup)
         .add_systems(Update, handle_kb_input)
@@ -40,15 +42,17 @@ fn render_positioned(
 }
 
 fn render_level(
-    mut q: Query<(&mut Handle<Image>, &mut TileComponent, &Position)>,
+    mut q_tiles: Query<(&mut Handle<Image>, &mut TileComponent, &Position)>,
+    mut q_text: Query<&mut Text, With<SideMovesText>>,
     assets: Res<AssetServer>,
     level: Res<Level>,
 ) {
-    for (mut tex, mut tile, &Position { position: p, .. }) in q.iter_mut() {
+    for (mut tex, mut tile, &Position { position: p, .. }) in q_tiles.iter_mut() {
         tile.0 = level.tile_at_vec(p);
         *tex = assets.load(format!("sprites/tiles/{}.png", tile.0.name()));
     }
-
+    let mut side_moves_text = q_text.single_mut();
+    side_moves_text.sections[0].value = format!("{} side moves left", level.side_moves);
 }
 
 fn setup(
@@ -64,8 +68,13 @@ fn setup(
         ..default()
     });
 
-    commands.spawn(TextBundle{text: Text::from_section("yo momma so very fat", TextStyle {
-        font_size: 18.0, color: Color::Rgba { red: 255.0, green: 255.0, blue: 255.0, alpha: 255.0 }, ..default()}), ..default()});
+    commands.spawn((TextBundle {
+            text: Text::from_section("yo momma so very fat", TextStyle {
+                font_size: 18.0,
+                color: Color::Rgba { red: 255.0, green: 255.0, blue: 255.0, alpha: 255.0 },
+                ..default()
+        }),
+        ..default()}, SideMovesText));
 
     for i in 0..level.width {
         for j in 0..level.height {
@@ -121,3 +130,6 @@ fn handle_kb_input(
 }
 #[derive(Component)]
 struct TileComponent(TileStored);
+
+#[derive(Component)]
+struct SideMovesText;

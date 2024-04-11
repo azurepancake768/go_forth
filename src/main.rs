@@ -12,10 +12,12 @@ pub const RIGHT_ANGLE: f32 = -3.141292 / 2.0;
 fn main() {
     let mut level: Vec<TileStored>;
 
-    level = [TileEmpty; 8].iter().map(|t| t.wrap()).collect();
+    level = [TileEmpty; 3].iter().map(|t| t.wrap()).collect();
+    level.push(Box::new(TileFinish));
+    level.append(&mut [TileEmpty; 4].iter().map(|t| t.wrap()).collect());
     level.push(Box::new(TileRowShift{facing: Facing::Up}));
     level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
-    level.push(Box::new(TilePlayerRot{side: Side::Left}));
+    level.push(Box::new(TilePlayerRot{side: Side::Right}));
     level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
 
     bevy_backend::run(level);
@@ -31,7 +33,19 @@ fn move_player(level: &mut Level, player: &mut Position, dir: Facing){
         let old_pos = player.position;
         player.position = new_pos;
         match level.tile_at_vec(new_pos).step(level, player) {
-            MoveOutcome::OK(o, _) => player.position = o.unwrap_or(new_pos),
+            MoveOutcome::OK(o, _) => {
+                if dir == Facing::Left || dir == Facing::Right && level.side_moves > 0{
+                    level.side_moves -= 1;
+                    player.position = o.unwrap_or(new_pos);
+                }
+                else if dir == Facing::Up || dir == Facing::Down {
+                    player.position = o.unwrap_or(new_pos);
+                }
+                else{
+                    info!("No side moves remaining");
+                    player.position = old_pos;
+                }
+            },
             MoveOutcome::Win => {
                 info!("Win!");
                 exit(0)
