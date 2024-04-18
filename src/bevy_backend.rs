@@ -1,17 +1,10 @@
-use std::fmt::format;
-
 use crate::*;
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, window::PrimaryWindow, asset::{AssetLoader, io::Reader, LoadContext}, utils::thiserror, input::keyboard::{KeyboardInput, Key}};
 
-pub fn run(level: Vec<TileStored>) {
+pub fn run(level: Level) {
     App::new()
         .add_plugins(DefaultPlugins)
-        .insert_resource(Level {
-            width: 4,
-            height: 4,
-            level,
-            side_moves: 2
-        })
+        .insert_resource(level)
         .add_systems(Startup, setup)
         .add_systems(Update, handle_kb_input)
         .add_systems(PostUpdate, (render_positioned, render_level))
@@ -35,7 +28,7 @@ fn render_positioned(
     {
         *t = Transform {
             translation: level_to_world_pos(p.x as u8, p.y as u8, &level, window).extend(0.0),
-            rotation: rot.unwrap_or(Facing::Up).rotation_quat(),
+            rotation: rot.rotation_quat(),
             ..*t
         };
     }
@@ -48,11 +41,11 @@ fn render_level(
     level: Res<Level>,
 ) {
     for (mut tex, mut tile, &Position { position: p, .. }) in q_tiles.iter_mut() {
-        tile.0 = level.tile_at_vec(p);
-        *tex = assets.load(format!("sprites/tiles/{}.png", tile.0.name()));
+        let tile = &mut tile.0;
+        *tile = level.tile_at_vec(p);
+        *tex = assets.load(format!("sprites/tiles/{}.png", tile.name()));
     }
-    let mut side_moves_text = q_text.single_mut();
-    side_moves_text.sections[0].value = format!("{} side moves left", level.side_moves);
+    q_text.single_mut().sections[0].value = format!("{} side moves left", level.side_moves);
 }
 
 fn setup(
@@ -69,7 +62,7 @@ fn setup(
     });
 
     commands.spawn((TextBundle {
-            text: Text::from_section("yo momma so very fat", TextStyle {
+            text: Text::from_section(format!("{} side moves left", level.side_moves), TextStyle {
                 font_size: 18.0,
                 color: Color::Rgba { red: 255.0, green: 255.0, blue: 255.0, alpha: 255.0 },
                 ..default()
@@ -98,28 +91,29 @@ fn setup(
             texture: assets.load("sprites/player.png"),
             ..default()
         },
-        Position::new(0, 0, Some(Facing::Up)),
+        Position::new(0, 0, Facing::Up),
         Player,
     ));
 }
 
 fn handle_kb_input(
     mut q: Query<&mut Position, With<Player>>,
-    keyboard_input: Res<Input<KeyCode>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     level: ResMut<Level>,
 ) {
     let level = level.into_inner();
-    let pos = q.single_mut();
-    let transform  = pos.into_inner();
-    match match keyboard_input.get_just_pressed().nth(0) {
-        Some(KeyCode::Up) => Some(Facing::Up),
-        Some(KeyCode::W)  => Some(Facing::Up),
-        Some(KeyCode::Down) => Some(Facing::Down),
-            Some(KeyCode::S)    => Some(Facing::Down),
-        Some(KeyCode::Right) => Some(Facing::Right),
-        Some(KeyCode::D)     => Some(Facing::Right),
-        Some(KeyCode::Left)  => Some(Facing::Left),
-        Some(KeyCode::A)     => Some(Facing::Left),
+    let transform = q.single_mut().into_inner();
+    let pressed_keys = keyboard_input.into_inner().get_just_pressed().collect::<Vec<&KeyCode>>();
+    if pressed_keys.len() > 0{
+    match match pressed_keys[0]{
+        KeyCode::ArrowUp => Some(Facing::Up),
+        KeyCode::KeyW  => Some(Facing::Up),
+        KeyCode::ArrowDown => Some(Facing::Down),
+        KeyCode::KeyS    => Some(Facing::Down),
+        KeyCode::ArrowRight => Some(Facing::Right),
+        KeyCode::KeyD     => Some(Facing::Right),
+        KeyCode::ArrowLeft  => Some(Facing::Left),
+        KeyCode::KeyA     => Some(Facing::Left),
         _ => None
     } {
         Some(dir) => {
@@ -127,7 +121,9 @@ fn handle_kb_input(
         }
         None => {}
     };
+    };
 }
+
 #[derive(Component)]
 struct TileComponent(TileStored);
 

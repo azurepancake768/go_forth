@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use std::{iter, mem::transmute, process::exit};
 mod tile;
 use tile::{*, Tile};
+mod level;
+use level::*;
 
 pub const TILE_TEXTURE_DIMENSION: f32 = 32.0;
 pub const TILE_TEXTURE_SCALE: f32 = 2.0;
@@ -10,30 +12,19 @@ pub const TILE_SIZE_PX: f32 = TILE_TEXTURE_DIMENSION * TILE_TEXTURE_SCALE;
 pub const RIGHT_ANGLE: f32 = -3.141292 / 2.0;
 
 fn main() {
-    let mut level: Vec<TileStored>;
-
-    level = [TileEmpty; 3].iter().map(|t| t.wrap()).collect();
-    level.push(Box::new(TileFinish));
-    level.append(&mut [TileEmpty; 4].iter().map(|t| t.wrap()).collect());
-    level.push(Box::new(TileRowShift{facing: Facing::Up}));
-    level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
-    level.push(Box::new(TilePlayerRot{side: Side::Right}));
-    level.append(&mut [TileEmpty; 3].iter().map(|t| t.wrap()).collect());
-
-    bevy_backend::run(level);
+        bevy_backend::run(Level::from_file("assets/levels/0.lvl").unwrap());
 }
 
 fn move_player(level: &mut Level, player: &mut Position, dir: Facing){
     let new_pos: UVec2 = unsafe {
-        let rot = player.rotation.unwrap_or(Facing::Up);
-        let increment = rot.add_rotation(dir).forward();
+        let increment = player.rotation.add_rotation(dir).forward();
         transmute(player.position.as_ivec2() + increment) 
     };
     if new_pos.x < level.width as u32 && new_pos.y < level.height as u32 {
         let old_pos = player.position;
         player.position = new_pos;
         match level.tile_at_vec(new_pos).step(level, player) {
-            MoveOutcome::OK(o, _) => {
+            MoveOutcome::OK(o) => {
                 if dir == Facing::Left || dir == Facing::Right && level.side_moves > 0{
                     level.side_moves -= 1;
                     player.position = o.unwrap_or(new_pos);
@@ -56,70 +47,24 @@ fn move_player(level: &mut Level, player: &mut Position, dir: Facing){
 
 }
 
-#[derive(Resource)]
-struct Level {
-    width: u8,
-    height: u8,
-    level: Vec<TileStored>,
-    side_moves: u8
-}
-
-impl Level {
-    fn tile_at(&self, x: u8, y: u8) -> TileStored {
-        self.level[(y * self.width as u8 + x) as usize].clone()
-    }
-
-    fn tile_at_vec(&self, p: UVec2) -> TileStored {
-        self.tile_at(p.x as u8, p.y as u8)
-    }
-
-    fn rows(&self) -> Vec<Vec<TileStored>> {
-        let mut result: Vec<Vec<TileStored>> = iter::repeat(
-            iter::repeat(TileEmpty)
-                .take(self.width as usize)
-                .map(|t| Box::new(t) as TileStored)
-                .collect()
-        )
-        .take(self.height as usize)
-        .collect();
-        for i in 0..self.width {
-            for j in 0..self.height {
-                result[i as usize][j as usize] = self.tile_at(j as u8, i as u8);
-            }
-        }
-        result
-    }
-}
-
 #[derive(Component, Clone, Copy)]
 struct Position {
     position: UVec2,
-    rotation: Option<Facing>,
+    rotation: Facing,
 }
 impl Position {
     fn pos(x: u8, y: u8) -> Self {
         Self {
             position: UVec2::new(x as u32, y as u32),
-            rotation: None,
+            rotation: Facing::Up,
         }
     }
 
-    fn pos_vec(position: UVec2) -> Self {
-        Self {
-            position,
-            rotation: None,
-        }
-    }
-
-    fn new(x: u8, y: u8, rotation: Option<Facing>) -> Self {
+    fn new(x: u8, y: u8, rotation: Facing) -> Self {
         Self {
             position: UVec2::new(x as u32, y as u32),
             rotation,
         }
-    }
-
-    fn new_vec(position: UVec2, rotation: Option<Facing>) -> Self {
-        Self { position, rotation }
     }
 }
 
@@ -128,7 +73,7 @@ struct Player;
 
 #[derive(Component)]
 enum MoveOutcome {
-    OK(Option<UVec2>, bool),
+    OK(Option<UVec2>/*, bool*/),
     Illegal,
     Win,
 }
@@ -149,33 +94,6 @@ impl Facing {
             Facing::Right => IVec2::X,
             Facing::Down => IVec2::NEG_Y,
             Facing::Left => IVec2::NEG_X,
-        }
-    }
-
-    fn right(&self) -> IVec2 {
-        match self {
-            Facing::Up => IVec2::X,
-            Facing::Right => IVec2::NEG_Y,
-            Facing::Down => IVec2::NEG_X,
-            Facing::Left => IVec2::Y,
-        }
-    }
-
-    fn back(&self) -> IVec2 {
-        match self {
-            Facing::Up => IVec2::NEG_Y,
-            Facing::Right => IVec2::NEG_X,
-            Facing::Down => IVec2::Y,
-            Facing::Left => IVec2::X,
-        }
-    }
-
-    fn left(&self) -> IVec2 {
-        match self {
-            Facing::Up => IVec2::NEG_Y,
-            Facing::Right => IVec2::NEG_X,
-            Facing::Down => IVec2::Y,
-            Facing::Left => IVec2::X,
         }
     }
 
